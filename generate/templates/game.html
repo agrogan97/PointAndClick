@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <!-- JavaScript Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+    <script src="{% static  'lib/createjs/createjs.js' %}"></script>
+    <script src="{% static  'lib/EaselJS/EaselJS-master/lib/easeljs.js' %}"></script>
+    <title>Adventus</title>
+</head>
+<body style="background-color:#b59bbd">
+    <div class="canvas-container">
+        <img src="{{ MEDIA_URL }}/gameHeader2.png" >
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="myCanvas" class="canvas-style" width="1280" height="720"></canvas>
+    </div>
+    <div class="canvas-container">
+        
+    </div>
+
+    <!-- Load in our safe JSON with Django template-->
+    {{ tableauJson|json_script:"tableau"}}
+    {{ hotspotsJson|json_script:"hotspots"}}
+    
+    <!-- <script src="{% static 'js/main.js' %}"></script> -->
+
+    <script>
+        const TABLEAUS = JSON.parse(JSON.parse(document.getElementById("tableau").textContent))
+        const HOTSPOTS = JSON.parse(JSON.parse(document.getElementById("hotspots").textContent))
+
+        function preloadImages(array) {
+            if (!preloadImages.list) {
+                preloadImages.list = [];
+            }
+            var list = preloadImages.list;
+            for (var i = 0; i < array.length; i++) {
+                var img = new Image();
+                img.onload = function() {
+                    var index = list.indexOf(this);
+                    if (index !== -1) {
+                        list.splice(index, 1);
+                    }
+                }
+                list.push(img);
+                img.src = array[i];
+            }
+        }
+
+        function doCaching() {
+            // Get all the images we use in our tableaus and load them into the pre-loader
+            var ims = [];
+            for (var i=0; i<TABLEAUS.length; i++) {
+                ims.push(TABLEAUS[i][i+1].BackgroundImage);
+            }
+            preloadImages(ims);
+            // Repeat for the popup images
+            var ims2 = [];
+            for (var key in HOTSPOTS) {
+                if (typeof(HOTSPOTS[key][1].ShowImage) == 'string') {
+                    ims2.push(HOTSPOTS[key][1].ShowImage)
+                } 
+            }
+            preloadImages(ims2);
+        }
+        doCaching()
+    </script>
+
+    <script>
+        // Game-specific globar vars
+        var stage;
+        var CONFIG = {
+            "DEBUG" : false,
+            "CurrentScene" : "1",
+            "CurrentIndex" : "0"
+        }
+
+        // Functions
+
+        function init() {
+            stage = new createjs.Stage("myCanvas");
+            // c = document.getElementById("myCanvas");
+            // ctx = c.getContext("2d")
+
+            if (CONFIG.DEBUG) {
+                var rect = document.getElementById("myCanvas").getBoundingClientRect()
+                onmousemove = function(e){console.log("mouse location:", (e.clientX - rect.left), (e.clientY- rect.top))}
+            }
+
+            var sceneData = TABLEAUS[CONFIG["CurrentIndex"]][CONFIG["CurrentScene"]];
+            var hotspotData = HOTSPOTS[CONFIG["CurrentScene"]];
+
+            // Render background image
+            updateBackgroundImage(sceneData["BackgroundImage"]);
+            stage.update()
+
+            // Create hotspots
+            createHotspots(sceneData, hotspotData);
+            //createHotspots(sceneData, hotspotData); 
+            stage.update()
+        }
+
+        function updateBackgroundImage(newImg) {
+            // Change the current background image to the next one
+            var image = new Image();
+            image.src = newImg;
+            image.onload = function() {
+                var bitmap = new createjs.Bitmap(image);
+                stage.addChild(bitmap);
+            }
+            var bitmap = new createjs.Bitmap(image);
+            stage.addChild(bitmap);
+        }
+
+        function createHotspots(sceneData, hotspots) {
+            for (var i=1; i<=sceneData.NumHotspots; i++) {
+                var circle = new createjs.Shape();
+                circle.graphics.beginFill("DeepSkyBlue").drawCircle(hotspots[i].x, hotspots[i].y, 10);
+                stage.addChild(circle);
+                circle.tmpID = i;
+                //The event listener will either load a new scene or create a popup image box, which we will branch here
+                circle.addEventListener("click", function(e) {
+                    var hsCurr = HOTSPOTS[CONFIG["CurrentScene"]]
+                    if (hsCurr[e.target.tmpID].Teleport == true) {
+                        CONFIG["CurrentScene"] = hsCurr[e.target.tmpID].TeleportToScene;
+                        CONFIG["CurrentIndex"] = (parseInt(hsCurr[e.target.tmpID].TeleportToScene)-1).toString();
+                        renderNew();
+                    } else {
+                        handlePopup(hsCurr[e.target.tmpID].ShowImage, sceneData, hotspots);
+                        // updateBackgroundImage(hsCurr[e.target.tmpID].ShowImage)
+                        stage.update();
+                    }
+                });
+                stage.update();
+            }
+        }
+
+        function renderNew() {
+
+            var sceneData = TABLEAUS[CONFIG["CurrentIndex"]][CONFIG["CurrentScene"]];
+            var hotspotData = HOTSPOTS[CONFIG["CurrentScene"]];
+            // Render background image
+            updateBackgroundImage(sceneData["BackgroundImage"]);
+            stage.update();
+
+            // Create hotspots
+            createHotspots(sceneData, hotspotData); 
+            stage.update();
+        } 
+
+        function handlePopup(newImg, sceneData, hotspots) {
+            // Make a rectangular popup box and put our hotspot image in it
+
+            // var image = new Image();
+            // image.src = newImg;
+
+            var image = document.createElement("img");
+            image.src = newImg;
+
+            var rect = new createjs.Shape();
+            rect.graphics.beginBitmapFill(image, "no-repeat")
+            rect.graphics.setStrokeStyle(1);
+            rect.graphics.beginStroke("#000000");
+            // rect.graphics.beginFill('red');
+            rect.graphics.drawRect(50, 50, 1000, 500);
+            rect.graphics.endFill()
+            stage.addChild(rect);
+            stage.update();
+
+            // Need to attach an event listener to close the popup
+            rect.addEventListener('click', function(e) {
+                stage.removeChild(rect);
+                stage.update()
+                createHotspots(sceneData, hotspots);
+            })
+        }
+
+        init()
+
+    </script>
+</body>
+</html>

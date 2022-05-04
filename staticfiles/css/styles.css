@@ -1,0 +1,9 @@
+.canvas-container {
+    display: flex;
+    align-content: center;
+    justify-content: center;
+}
+
+.canvas-style {
+    outline: #051645d3 15px solid;
+}

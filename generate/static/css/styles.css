@@ -1,0 +1,24 @@
+.canvas-container {
+    padding: 20px;
+    display: flex;
+    align-content: center;
+    justify-content: center;
+}
+
+.canvas-style {
+    outline: #051645d3 15px solid;
+}
+
+.mainDiv {
+    position: relative;
+    top: 10%;
+    left: 25%;
+    margin-left: -75px;
+    width: 1280px;
+    height: 720px;
+}
+
+.imgBox {
+    position: relative;
+    z-index: -5;
+}
